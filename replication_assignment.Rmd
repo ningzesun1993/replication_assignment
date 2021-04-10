@@ -208,14 +208,18 @@ Before building the model, we need to know the distribution of the dataset.
 
 First, as the target of the dataset, I want to know whether it is location dependent, so I used Lat as x axis and Lng as y axis and the color is price. It is pretty clear that price is location dependent showing in the figure 3a. Then, the age of house is also dependent in location, showing in the figure 3b
 
-!["figure 4, Location point plot of price and age"](./image/figure_3.png)
+!["figure 3, Location point plot of price and age"](./image/figure_3.png)
+
+!["supplemental figure 3, Location point plot of price and age in paper"](./image/sup_figure_3.png)
 
 
 Then I want to know whether there is a relationship between price and districts, so I use a bar plot to plot different districts with prices, and the price is different between districts showing in figure 4a
 
 Then I want to know whether there is a correlation between price or square with buildingType, so I use bar plot to plot different buildingType with price and square, the result showing int the figure 4b and figure 4c
 
-!["figure 6, bar plot of district/buildingType and price/square"](./image/figure_4.png)
+!["figure 4, bar plot of district/buildingType and price/square"](./image/figure_4.png)
+
+!["supplemental figure 4, bar plot of district/buildingType and price/square in paper"](./image/sup_figure_4.png)
 
 
 ```{r analysis_plot}
@@ -246,6 +250,10 @@ There are 51 variables in the dataset but in the paper they had 58, I think it i
 Since there are 51 variables it is necessary to check about cumulative explained variance to check whether some of the variable has less variance so we can delete them. However, the curve is pretty smooth and almost converges around 30th showing in the figure 5. So we don't need to delete the features. This is suggested by the paper which is not correct, I will discuss this in the discussion.
 
 !["figure 5, Cumulative explained variance plot"](./image/figure_5.png)
+
+!["supplemental figure 5, Cumulative explained variance plot in paper"](./image/sup_figure_5.png)
+
+
 
 ```{r scale_dummy}
 num_factor = c("followers", "square", "age", "floorHeight", "distance", "ladderRatio", "communityAverage")
@@ -395,6 +403,10 @@ The XGBoost result is showing in figure 7
 
 !["figure 7, XGBoost prediction result"](./image/figure_8.png)
 
+!["supplemental figure 6, random forest and XGBoost prediction result in paper"](./image/sup_figure_6.png)
+
+
+
 ### Light Gradient Boosting Machine (LightGBM)
 
 LightGBM is a gradient boosting framework that uses a tree-based learning algorithm. LightGBM has faster training
@@ -439,6 +451,8 @@ df_r[2,]
 The result plots in figure 8
 
 !["figure 8, LightGBM prediction result"](./image/figure_7.png)
+
+!["supplemental figure 8, LightGBM prediction result in paper"](./image/sup_figure_7.png)
 
 
 ### hybrid regression
@@ -550,6 +564,7 @@ The result of stacked generalization is showing in figure 10
 
 !["figure 10, Stacked generalization prediction result"](./image/figure_10.png)
 
+!["supplemental figure 9, stack_generation and hybrid regression prediction result in paper"](./image/sup_figure_8.png)
 
 ## Result and discussion
 
