@@ -1,0 +1,14 @@
+Unable to init server: Could not connect: Connection refused
+Unable to init server: Could not connect: Connection refused
+
+(house_price_run.py:28499): Gdk-CRITICAL **: 16:49:08.142: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
+For Random_Forest, time is 17.9639, test RMSLE is 0.124, train RMSLE is 0.0851
+For lightGBM, time is 0.6352, test RMSLE is 0.1327, train RMSLE is 0.1301
+For xgboost, time is 1.8722, test RMSLE is 0.1332, train RMSLE is 0.1305
+For Random_Forest_grid_search, time is 18.2683, test RMSLE is 0.1235, train RMSLE is 0.0823
+For LightGBM_grid_search, time is 1.0188, test RMSLE is 0.1243, train RMSLE is 0.1174
+For XGboost_grid_search, time is 1.9557, test RMSLE is 0.1329, train RMSLE is 0.1302
+For hybrid_regrission, time is 22.9484, test RMSLE is 0.1269, train RMSLE is 0.1127
+For hybrid_regrission_grid_search, time is 23.3986, test RMSLE is 0.1277, train RMSLE is 0.1122
+For stack_generation, time is 101.5838, test RMSLE is 0.1245, train RMSLE is 0.1007
+For stack_generation_grid_search, time is 103.2855, test RMSLE is 0.1251, train RMSLE is 0.0988
