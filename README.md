@@ -24,8 +24,12 @@ house_price.pdf is the paper
 
 house_price_run.py is the python file for all models training coding by python
 
-repliaction_assignment.RMD is the rmd file to generate html file
+repliaction_assignment_fast_run.RMD is the rmd file to generate html file without generate all the images
 
-replication_assignment.html is the key file for this project
+repliaction_assignment_fast_run.html is the html from repliaction_assignment_fast_run.RMD
+
+replication_image_generation.RMD is the rmd file to generate html file with generate all the images
+
+replication_image_generation.html is the html from replication_image_generation.RMD
 
 running.log is the log file from house_price_run.py

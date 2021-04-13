@@ -24,6 +24,9 @@ library(randomForest)
 library(Metrics)
 library(xgboost)
 library(lightgbm)
+library(ggpubr)
+theme_set(theme_pubr())
+
 
 
 
@@ -111,7 +114,14 @@ fiveYearsProperty: if the owner have the property for less than 5 years (numeric
 
 ### Load and clean data
 
-First of all, I load and do some initial clean for the data. Since there are some missing value or meaningless value, I replace word nan as NA value and delete url, id and Cid which is neither meaningful for training nor developing new features. And I turn the livingRoom, bathRoom, and constructionTime features into numeric and with as.numeric function, the unconverted cells will turn into NA value. And turn the tradeTime to datetime type and extract the year. And then split floor features into 2 different features, first part is floorType second part is floorHeight, unsplited or unconverted cells will turn into NA value. Since floorType contains are not very meaningful so I used LabelEncoder to transform it into categorical data. Then generate new feature age from 2019 - constructTime and turn it into numeric. And then distance is another feature that should be added which is the distance from the center of the city calculated from Lat and Lng
+First of all, I load and do some initial clean for the data. Since there are some missing value or meaningless value, I replace word nan as NA value and delete url, id and Cid which is neither meaningful for training nor developing new features. 
+
+
+Then I turn the livingRoom, bathRoom, and constructionTime features into numeric and with as.numeric function, the unconverted cells will turn into NA value. And turn the tradeTime to datetime type and extract the year. 
+
+And then split floor features into 2 different features, first part is floorType second part is floorHeight, unsplited or unconverted cells will turn into NA value. Since floorType contains are not very meaningful values, so I used LabelEncoder to transform it into categorical data. 
+
+Then generate new feature age from 2019 - constructTime and turn it into numeric and distance is another feature that should be added which is the distance from the center of the city calculated from Lat and Lng
 
 
 ```{r load_data, warning = 0}
@@ -137,12 +147,15 @@ df = df %>% mutate(distance = sqrt((Lat - 39.9042)^2 + (Lng - 116.4074)^2)) %>%
 
 ### review missing value
 
-Plot missing value using vis_miss function showing in figure 1, and based on the image, we can get the idea that DOM (Day on market) contains more than 50% of missing value, therefore I remove it and other features' missing values are not huge amounts, so I remove the rows if there are any missing values. 
+Plot missing value using vis_miss function showing in figure 1, and based on the image, we can get the idea that DOM (Day on market) contains more than 50% of missing value, therefore I remove it and other features' missing values are not huge amounts, so I remove the rows if there are any missing values.
+
 (All of figures use a lot of time to generate, so I just use generated plots to show the results to save some time)
 
-```{r missing_value}
+```{r missing_value, message = 0}
 # This is the code to generate thhis figure
+# png("test_image/figure_1.png", width = 812, height = 545)
 # vis_miss(df, warn_large_data = FALSE)
+# dev.off()
 ```
 
 !["figure 1, missing values of dataset"](./image/figure_1.png)
@@ -153,15 +166,20 @@ To remove the outlier, I used inter-Quartile Range(IQR) to detect the outlier:
 
 x < Q1 - 1.5 * IQR OR Q3 + 1.5 * IQR < x
 
-where Q1 = 25th percentiles and Q3 = 75% percentiles and IQR = Q3 - Q1
+where Q1 = 25th percentiles and Q3 = 75th percentiles and IQR = Q3 - Q1
 
-And it is not clear in the paper how to detect and which features are detected, I use "followers", "square", "age", "floorHeight", "distance", "ladderRatio", "communityAverage", "totalPrice" features to detect the outlier one by one and then remove it. And then turn these features into factor for further plot: "district", "buildingType", "renovationCondition", "buildingStructure", "elevator", "fiveYearsProperty", 'subway', "renovationCondition". Meanwhile, it makes no sense to purchase a house within 100 dollars, so I remove the price that less than 14000 dollars. In the paper, the final dataset contained 231962 rows but in my calculation it contains 231167 rows which is pretty similar.
+And it is not clear in the paper how to detect and which features are detected, I use "followers", "square", "age", "floorHeight", "distance", "ladderRatio", "communityAverage", "totalPrice" features to detect the outlier one by one and then remove it. 
+
+And then turn these features into factor for further plot: "district", "buildingType", "renovationCondition", "buildingStructure", "elevator", "fiveYearsProperty", 'subway', "renovationCondition". 
+
+Meanwhile, it makes no sense to purchase a house within 14000 dollars, so I remove the price that less than 14000 dollars.
+
+In the paper, the final dataset contained 231962 rows but in my calculation it contains 231167 rows which is pretty similar.
 
 ```{r outlier_removal}
 drop_columns = c("DOM", "floor", "constructionTime")
 df = df[,!(names(df) %in% drop_columns)]
 df = df %>% drop_na()
-df = df %>% filter(price >= 100 )
 fact = c("district", "buildingType", "renovationCondition", "buildingStructure", "elevator",
          "fiveYearsProperty", 'subway', "renovationCondition")
 for (i in fact){
@@ -185,17 +203,19 @@ count(df)[['n']]
 
 There are several columns that are unnecessary: "DOM", "floor", "constructionTime", "totalPrice", "kitchen", "bathRoom", "drawingRoom", "totalPrice" so I drop them. The final features are 19 which is consistent with the paper
 
-In the paper, they used RMSLE instead of RMSE besides showing in the image of histogram of the target, price (not show in the paper) is a right tail showing in figure 2a but with log1p (log(y+1)) transformation, the target is almost normal distribution showing in figure 2b. This is a better performance for target for all machine learning training. So used this transform, it is not necessary to use RMSLE as losing function in the training process instead RMSE is enough.
+In the paper, they used RMSLE instead of RMSE besides showing in the image of histogram of the target, price (not show in the paper) is a right tail showing in figure 2a but with log1p (log(y+1)) transformation, the target is almost normal distribution showing in figure 2b. This is a better performance for target for all machine learning training. So used this transform, it is not necessary to use RMSLE as losing function in the training process, RMSE is enough. Besides, all the default loss function for models are not included RMSLE
 
-```{r drop_columns_norm_target}
+```{r drop_columns_norm_target, message = 0}
 drop_columns = c("DOM", "floor", "constructionTime", "totalPrice", "kitchen", "bathRoom", "drawingRoom", "totalPrice")
 df = df[,!(names(df) %in% drop_columns)]
 df$price_t = log1p(df$price)
 # this is the code to generate plot
+# png('test_image/figure_2.png', width = 810, height = 320)
 # a = ggplot(df, aes(x = price)) + geom_histogram(binwidth = 30) + ggtitle("Histogram of price")
 # b = ggplot(df, aes(x = price_t)) + geom_histogram(binwidth = 0.02) + ggtitle("Histogram of log1p transformed price")
 # ggarrange(a, b, labels = c('a', 'b'), ncol = 2, nrow = 1)
-length(names(df)) - 2
+# length(names(df)) - 2
+# dev.off()
 
 ```
 
@@ -206,9 +226,33 @@ length(names(df)) - 2
 
 Before building the model, we need to know the distribution of the dataset.
 
-First, as the target of the dataset, I want to know whether it is location dependent, so I used Lat as x axis and Lng as y axis and the color is price. It is pretty clear that price is location dependent showing in the figure 3a. Then, the age of house is also dependent in location, showing in the figure 3b
+First, as the target of the dataset, I want to know whether it is location dependent, so I used Lat as x axis and Lng as y axis and the color is price. It is pretty clear that price is location dependent showing in the figure 3a. 
+
+```{r analysis_plot, message = 0}
+# the code to plot all the figures
+# png("./test_image/figure_3.png", width = 812, height = 450)
+# a = ggplot(df, aes(x = Lat, y = Lng, color = price)) + geom_point()+
+#     scale_color_viridis(option = "D") + ggtitle("Plot of price with location")
+# b = ggplot(df, aes(x = Lat, y = Lng, color = age)) + geom_point()+
+#    scale_color_viridis(option = "D") + ggtitle("Plot of location with age")
+# ggarrange(a, b, labels = c('a', 'b'), ncol = 2, nrow = 1)
+# dev.off()
+# 
+# png("./test_image/figure_4.png", width = 812, height = 545)
+# a = ggplot(df, aes(x = district, y=price)) +
+#   geom_boxplot()+ ggtitle("Plot of price with district")
+# b = ggplot(df, aes(x = buildingType, y=price)) +
+#   geom_boxplot()+ ggtitle("Plot of price with buildingType")
+# c = ggplot(df, aes(x = buildingType, y=square)) +
+#   geom_boxplot()+ ggtitle("Plot of square with buildingType")
+# ggarrange(a, ggarrange(b,c, ncol = 2, labels = c('b', 'c')), labels = 'a', nrow = 2)
+# dev.off()
+```
 
 !["figure 3, Location point plot of price and age"](./image/figure_3.png)
+
+Then, the age of house is also dependent in location, showing in the figure 3b
+
 
 !["supplemental figure 3, Location point plot of price and age in paper"](./image/sup_figure_3.png)
 
@@ -222,40 +266,21 @@ Then I want to know whether there is a correlation between price or square with 
 !["supplemental figure 4, bar plot of district/buildingType and price/square in paper"](./image/sup_figure_4.png)
 
 
-```{r analysis_plot}
-# the code to plot all the figures
-# a = ggplot(df, aes(x = Lat, y = Lng, color = price)) + geom_point()+
-#     scale_color_viridis(option = "D") + ggtitle("Plot of price with location")
-# 
-# b = ggplot(df, aes(x = Lat, y = Lng, color = age)) + geom_point()+
-#    scale_color_viridis(option = "D") + ggtitle("Plot of location with age")
-# ggarrange(a, b, labels = c('a', 'b'), ncol = 2, nrow = 1)
-# a = ggplot(df, aes(x = district, y=price)) +
-#   geom_boxplot()+ ggtitle("Plot of price with district")
-# b = ggplot(df, aes(x = buildingType, y=price)) +
-#   geom_boxplot()+ ggtitle("Plot of price with buildingType")
-# c = ggplot(df, aes(x = buildingType, y=square)) +
-#   geom_boxplot()+ ggtitle("Plot of square with buildingType")
-# ggarrange(a, ggarrange(b,c, ncol = 2, labels = c('b', 'c')), labels = 'a', nrow = 2)
-```
+
 
 ## model selection
 
 ### scale and one hot encoded for features
 
-For all numerical features, they are standardized, I don't think this step is necessary since only decision tree based model are performed, I will talk about this in the discussion. And for all dummy variable, one-hoe-encoded (dummy variable) are performed to make it work. This is only necessary for partial model, I will also discuss this in discussion. 
+For all numerical features, they are standardized, I don't think this step is necessary since only decision tree based model are performed, I will talk about this in the discussion. 
+
+And for all dummy variable, one-hoe-encoded (dummy variable) are performed to make it work. This is only necessary for partial model, I will also discuss this in discussion. 
 
 There are 51 variables in the dataset but in the paper they had 58, I think it is fine since they didn't show the detail about categorical features and I used these features as categorical features and I think it makes more sense.
 
 Since there are 51 variables it is necessary to check about cumulative explained variance to check whether some of the variable has less variance so we can delete them. However, the curve is pretty smooth and almost converges around 30th showing in the figure 5. So we don't need to delete the features. This is suggested by the paper which is not correct, I will discuss this in the discussion.
 
-!["figure 5, Cumulative explained variance plot"](./image/figure_5.png)
-
-!["supplemental figure 5, Cumulative explained variance plot in paper"](./image/sup_figure_5.png)
-
-
-
-```{r scale_dummy}
+```{r scale_dummy, message = 0}
 num_factor = c("followers", "square", "age", "floorHeight", "distance", "ladderRatio", "communityAverage")
 for (i in num_factor){
   df[[i]] = scale(df[[i]])
@@ -275,16 +300,32 @@ cum_pr <- as.data.frame(cumsum(pr$sdev^2 / sum(pr$sdev^2)))
 names(cum_pr) = c("cum_variance")
 cum_pr$index = as.numeric(row.names(cum_pr))
 # this is the code for PCA
-# ggplot(cum_pr, aes(x = index, y = cum_variance)) + geom_line() + xlab("number of components") + 
+# png("test_image/figure_5.png", width = 812, height = 545)
+# ggplot(cum_pr, aes(x = index, y = cum_variance)) + geom_line() + xlab("number of components") +
 #   ylab("cumulative explained variance")
+# dev.off()
+
+```
+
+
+
+```{r columns_num}
 length(names(df)) - 2
 
 ```
 
 
+!["figure 5, Cumulative explained variance plot"](./image/figure_5.png)
+
+!["supplemental figure 5, Cumulative explained variance plot in paper"](./image/sup_figure_5.png)
+
+
+
 ### build the model
 
-And I will split the training and test dataset in a ratio of 4:1. This will give a better idea about whether it is over-fitting and most common and easiest way to train and test the model. Other validation method called cross-validation is used in grid search for hyper parameter.
+And I will split the training and test dataset in a ratio of 4:1. This will give a better idea about whether it is over-fitting and most common and easiest way to train and test the model. 
+
+Other validation method called cross-validation is used in grid search for hyper parameter.
 
 
 ```{r split_train}
@@ -298,11 +339,99 @@ test = test[,!(names(test) %in% c('price'))]
 ```
 
 
-After this part, I use python code instead of R since the hyper parameter of R and python may not be same and python's library built by C++(numpy based) therefore, python runs faster and for hybrid regression and stacked generalization, R doesn't have a common library to train instead python sklearn library has a defined functions. So, I will use python to train the model but visualize the data with R instead. The code is in test.ipynb
+After this part, I use python code instead of R since the hyper parameter of R and python may not be same and for hybrid regression and stacked generalization, R doesn't have a common library to train, on the other hand python sklearn library has defined functions. So, I use python to train the model but visualize the data with R instead. 
+
+The code is in test.py
+
+
+```{r run_plot, message = 0}
+# all the figures are ploted by this code
+
+# df_train = as_tibble(read.csv('./resources/train_result.csv'))
+# df_test = as_tibble(read.csv('./resources/test_result.csv'))
+# png("test_image/figure_6.png", width = 812, height = 545)
+# ele = element_text(size = 10)
+# a = ggplot(df_train, aes(y = target, x = Random_Forest)) + geom_point() +
+#   ggtitle("Training result of random forest") + xlab("predicted price") + ylab("Actual price") +
+#   theme(plot.title = ele, axis.text = ele)
+# b = ggplot(df_test, aes(y = target, x = Random_Forest)) + geom_point() +
+#   ggtitle("Test result of random forest") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# c = ggplot(df_train, aes(y = target, x = Random_Forest_grid_search)) + geom_point() +
+#   ggtitle("Training result of grid searched random forest") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# d = ggplot(df_test, aes(y = target, x = Random_Forest_grid_search)) + geom_point() +
+#   ggtitle("Test result of grid searched random forest") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
+# dev.off()
+# png("test_image/figure_7.png", width = 812, height = 545)
+# a = ggplot(df_train, aes(y = target, x = lightGBM)) + geom_point() +
+#   ggtitle("Training result of lightGBM") + xlab("predicted price") + ylab("Actual price") +
+#   theme(plot.title = ele, axis.text = ele)
+# b = ggplot(df_test, aes(y = target, x = lightGBM)) + geom_point() +
+#   ggtitle("Test result of lightGBM") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# c = ggplot(df_train, aes(y = target, x = LightGBM_grid_search)) + geom_point() +
+#   ggtitle("Training result of grid searched lightGBM") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# d = ggplot(df_test, aes(y = target, x = LightGBM_grid_search)) + geom_point() +
+#   ggtitle("Test result of grid searched lightGBM") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
+# dev.off()
+# png("test_image/figure_8.png", width = 812, height = 545)
+# a = ggplot(df_train, aes(y = target, x = xgboost)) + geom_point() +
+#   ggtitle("Training result of xgboost") + xlab("predicted price") + ylab("Actual price") +
+#   theme(plot.title = ele, axis.text = ele)
+# b = ggplot(df_test, aes(y = target, x = xgboost)) + geom_point() +
+#   ggtitle("Test result of xgboost") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# c = ggplot(df_train, aes(y = target, x = XGboost_grid_search)) + geom_point() +
+#   ggtitle("Training result of grid searched xgboost") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# d = ggplot(df_test, aes(y = target, x = XGboost_grid_search)) + geom_point() +
+#   ggtitle("Test result of grid searched xgboost") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
+# dev.off()
+# png("test_image/figure_9.png", width = 812, height = 545)
+# a = ggplot(df_train, aes(y = target, x = hybrid_regrission)) + geom_point() +
+#   ggtitle("Training result of hybrid_regrission") + xlab("predicted price") + ylab("Actual price") +
+#   theme(plot.title = ele, axis.text = ele)
+# b = ggplot(df_test, aes(y = target, x = hybrid_regrission)) + geom_point() +
+#   ggtitle("Test result of hybrid_regrission") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# c = ggplot(df_train, aes(y = target, x = hybrid_regrission_grid_search)) + geom_point() +
+#   ggtitle("Training result of grid searched hybrid_regrission") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# d = ggplot(df_test, aes(y = target, x = hybrid_regrission_grid_search)) + geom_point() +
+#   ggtitle("Test result of grid searched hybrid_regrission") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
+# dev.off()
+# png("test_image/figure_10.png", width = 812, height = 545)
+# a = ggplot(df_train, aes(y = target, x = stack_generation)) + geom_point() +
+#   ggtitle("Training result of stack_generation") + xlab("predicted price") + ylab("Actual price") +
+#   theme(plot.title = ele, axis.text = ele)
+# b = ggplot(df_test, aes(y = target, x = stack_generation)) + geom_point() +
+#   ggtitle("Test result of stack_generation") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# c = ggplot(df_train, aes(y = target, x = stack_generation_grid_search)) + geom_point() +
+#   ggtitle("Training result of grid searched stack_generation") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# d = ggplot(df_test, aes(y = target, x = stack_generation_grid_search)) + geom_point() +
+#   ggtitle("Test result of grid searched stack_generation") + xlab("predicted price") +
+#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
+# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
+# dev.off()
+```
+
+
 
 ### Random Forest
 
-Random Forest is decision tree based ensemble model that combines the prediction of multiple decision trees to create more accurate final prediction. Random forest or bootstrap based method can combine low biased but high variances models to decrease the variances compared with gradient boost which can decrease the biased but cannot decrease the variances. "Random" in Random Forest is randomly selecting the features and data by bootstrap (randomly choose n samples from dataset with replacement)
+Random Forest is decision tree based ensemble model that combines the predictions of multiple decision trees to create more accurate final prediction. Random forest or bootstrap based method can combine low biased but high variances models to decrease the variances compared with gradient boost which can decrease the biased but cannot decrease the variances. "Random" in Random Forest is randomly selecting the features and data by bootstrap (randomly choose n samples from dataset with replacement)
 
 In the paper, there are 2 parameters that need to be set: max_depth, min_samples_split
 
@@ -345,7 +474,9 @@ df_r[1,]
 
 ### grid search for hyper parameter
 
-Since the data is not exactly same compared with the paper result, it is a good idea to redo the model hyper parameter by grid search. In here, I use train dataset and sklearn GridSearchCV to find the best estimator. For Random Forest, I select max_depth and min_samples_split as params_range to search the best estimator.
+Since the data is not exactly same compared with the paper result, it is a good idea to redo the model hyper parameter by grid search. In here, I use train dataset and sklearn GridSearchCV to find the best estimator. 
+
+For Random Forest, I select max_depth and min_samples_split as params_range to search the best estimator.
 
 The result of RF is showing in figure 6 plot with actual price and predicted price
 
@@ -356,11 +487,11 @@ The result of RF is showing in figure 6 plot with actual price and predicted pri
 
 ## Extreme Gradient Boosting (XGBoost)
 
-XGBoost is a scalable machine learning system for gradient boosting decision tree (GBDT), The scalability of XGBoost is due to several major systems and algorithmic optimization including a novel tree learning algorithm for handling sparse data and a theoretically justified weighted quantile sketch procedure enabling instance weight handling in approximate tree learning. And it suppose multiple losing function.
+XGBoost is a scalable machine learning system for gradient boosting decision tree (GBDT), The scalability of XGBoost is due to several major systems and algorithmic optimization including a novel tree learning algorithm for handling sparse data and a theoretically justified weighted quantile sketch procedure enabling instance weight handling in approximate tree learning. And it suppose multiple loss functions.
 
 However there are several disadvantages for this model: it cannot handle categorical features, and this is the reason why I transfer the categorical features into dummy variables, and it uses sort to select split node for features, this will decrease the performances speed.
 
-XGBoost grows tree level-wise
+XGBoost grows tree level-wise.
 
 In the paper, multiple hyper parameter are modified:
 
@@ -486,78 +617,6 @@ xgboost as a second stacking level, it is unoptimized, so only RF and lightGBM c
 
 ```{r stack}
 df_r[5,]
-# all the figures are ploted by this code
-
-# df_train = as_tibble(read.csv('./resources/train_result.csv'))
-# df_test = as_tibble(read.csv('./resources/test_result.csv'))
-# ele = element_text(size = 10)
-# a = ggplot(df_train, aes(y = target, x = Random_Forest)) + geom_point() + 
-#   ggtitle("Training result of random forest") + xlab("predicted price") + ylab("Actual price") + 
-#   theme(plot.title = ele, axis.text = ele)
-# b = ggplot(df_test, aes(y = target, x = Random_Forest)) + geom_point() + 
-#   ggtitle("Test result of random forest") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# c = ggplot(df_train, aes(y = target, x = Random_Forest_grid_search)) + geom_point() + 
-#   ggtitle("Training result of grid searched random forest") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# d = ggplot(df_test, aes(y = target, x = Random_Forest_grid_search)) + geom_point() + 
-#   ggtitle("Test result of grid searched random forest") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
-# a = ggplot(df_train, aes(y = target, x = lightGBM)) + geom_point() + 
-#   ggtitle("Training result of lightGBM") + xlab("predicted price") + ylab("Actual price") + 
-#   theme(plot.title = ele, axis.text = ele)
-# b = ggplot(df_test, aes(y = target, x = lightGBM)) + geom_point() + 
-#   ggtitle("Test result of lightGBM") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# c = ggplot(df_train, aes(y = target, x = LightGBM_grid_search)) + geom_point() + 
-#   ggtitle("Training result of grid searched lightGBM") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# d = ggplot(df_test, aes(y = target, x = LightGBM_grid_search)) + geom_point() + 
-#   ggtitle("Test result of grid searched lightGBM") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
-# a = ggplot(df_train, aes(y = target, x = xgboost)) + geom_point() + 
-#   ggtitle("Training result of xgboost") + xlab("predicted price") + ylab("Actual price") + 
-#   theme(plot.title = ele, axis.text = ele)
-# b = ggplot(df_test, aes(y = target, x = xgboost)) + geom_point() + 
-#   ggtitle("Test result of xgboost") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# c = ggplot(df_train, aes(y = target, x = XGboost_grid_search)) + geom_point() + 
-#   ggtitle("Training result of grid searched xgboost") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# d = ggplot(df_test, aes(y = target, x = XGboost_grid_search)) + geom_point() + 
-#   ggtitle("Test result of grid searched xgboost") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
-# 
-# a = ggplot(df_train, aes(y = target, x = hybrid_regrission)) + geom_point() + 
-#   ggtitle("Training result of hybrid_regrission") + xlab("predicted price") + ylab("Actual price") + 
-#   theme(plot.title = ele, axis.text = ele)
-# b = ggplot(df_test, aes(y = target, x = hybrid_regrission)) + geom_point() + 
-#   ggtitle("Test result of hybrid_regrission") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# c = ggplot(df_train, aes(y = target, x = hybrid_regrission_grid_search)) + geom_point() + 
-#   ggtitle("Training result of grid searched hybrid_regrission") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# d = ggplot(df_test, aes(y = target, x = hybrid_regrission_grid_search)) + geom_point() + 
-#   ggtitle("Test result of grid searched hybrid_regrission") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
-# 
-# a = ggplot(df_train, aes(y = target, x = stack_generation)) + geom_point() + 
-#   ggtitle("Training result of stack_generation") + xlab("predicted price") + ylab("Actual price") + 
-#   theme(plot.title = ele, axis.text = ele)
-# b = ggplot(df_test, aes(y = target, x = stack_generation)) + geom_point() + 
-#   ggtitle("Test result of stack_generation") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# c = ggplot(df_train, aes(y = target, x = stack_generation_grid_search)) + geom_point() + 
-#   ggtitle("Training result of grid searched stack_generation") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# d = ggplot(df_test, aes(y = target, x = stack_generation_grid_search)) + geom_point() + 
-#   ggtitle("Test result of grid searched stack_generation") + xlab("predicted price") + 
-#   ylab("Actual price") +  theme(plot.title = ele, axis.text = ele)
-# ggarrange(a,b,c,d, labels = c('a', 'b', 'c', 'd'), ncol = 2, nrow = 2)
 ```
 
 The result of stacked generalization is showing in figure 10
@@ -573,23 +632,39 @@ The result of stacked generalization is showing in figure 10
 df_r
 ```
 
-The final result is better than the result in paper, the reason is because I remove the outlier that the price is lower than 14000 which I think don't make any sense since it is impossible to purchase a house or apartment within 14000 dollars. Meanwhile, the mean idea for this paper is that ensemble different models together will increase the accuracy. My result can partially support this result.
+The final result is better than the result in paper, the reason is because I remove the outlier that the price is lower than 14000 which I think doesn't make any sense since it is impossible to purchase a house or apartment within 14000 dollars. Meanwhile, the mean idea for this paper is that ensemble different models together will increase the accuracy. My result can partially support this result.
 
-During the data process, it is very hard to follow the paper to repeat since the whole process is ambiguous and even some of them are make no sense: first, it is not a good idea to drop the whole row with missing value, we could use different method to fill in the missing value, one of the way is using KNN to fill by location since the the neighborhood would have very similar properties. Second, some other features may add to the dataset. Third the feature selection should also be performed using different way such as step-wise to simplify the dataset and increase the accuracy. Last, the outlier detecting and removing is very rough, just using IQR is not a very good idea, I think my idea of removing the lower than 14000 price maybe better.
+During the data process, it is very hard to follow the paper to repeat since the whole process is ambiguous and even some of them are make no sense: 
 
-For the model selection, standardized for numerical values are meaningless since there are only using decision tree based models in this paper, decision tree does not need standardized data because the key of the models is spited value by entries or other information. And one-hot-encoded is also not necessary since lightGBM can handle categorical data and it has its own datatype to handle the categorical features especially for large dataset. 
+First, it is not a good idea to drop the whole row with missing value, we could use different methods to fill in the missing value, one of the way is using KNN to fill by location since the the neighborhood would have very similar properties.
 
-For evaluation function, using Root Mean Squared Logarithmic Error may be a good way, but there is no built-in losing function in these models so I don't know how they train the model, but one of the simple way is just use log1p to transform the target. 
+Second, some other features may add to the dataset. 
+
+Third the feature selection should also be performed using different way such as step-wise to simplify the dataset and increase the accuracy. 
+
+Last, the outlier detecting and removing is very rough, just using IQR is not a very good idea, I think my idea of removing the lower than 14000 price maybe better.
+
+For the model selection, standardized for numerical values are meaningless since there are only using decision tree based models in this paper. Decision tree does not need standardized data because the key of the models is spited value by entropy or other information. And one-hot-encoded is also not necessary since lightGBM can handle categorical data and it has its own datatype to handle especially for large dataset. 
+
+For evaluation function, using Root Mean Squared Logarithmic Error may be a good way, but there is no built-in loss function in these models so I don't know how they train the model, but one of the simple way is just use log1p to transform the target. 
 
 There is a mistake writing in the Random Forest part: RandomForestClassifier is not class for regression training, it is for classification training.
 
 In the random forest, it is very easy to get an idea that the train error is significantly smaller than test error, therefore random forest get a strong overfitting, and it is very hard to say the performance since the dataset is too small and rf can decrease the variance but not bias.
 
-For xgboost, there is a mistake that they didn't tune depth or max_leaves because these are the most important hyper parameter for overfitting instead of other hyper parameter and it will influence the model significantly, and n_estimators is not necessary to be tested since we could use early stopping to limit the iteration with a very large n_estimators. This mistake is also happened to LightGBM.
+For xgboost, there is a mistake that they didn't tune depth or max_leaves because these are the most important hyper parameter for overfitting instead of other hyper parameter and it will influence the model significantly, and n_estimators is not necessary to be tuning since we could use early stopping to limit the iteration with a very large n_estimators. This mistake is also happened to LightGBM.
 
-Hybrid regression can ensemble different models to be a strong learner. And based on my result, it increases the accuracy but may not be better than rf. It is possible that I used very small amount of parameters and parameter ranges for grid search, this also happened in stack generation, with larger training time with larger amount of parameter and ranges, I think this will gives a better result.  
+Hybrid regression can ensemble different models to be a strong learner. And based on my result, it increases the accuracy but may not be better than rf. It is possible that I used very small amount of parameters and parameter ranges for grid search, this also happened in stack generation, with larger training time, with larger amount of parameter and ranges, I think this will gives a better result.  
 
-For parameter tuning, I suggests to use Bayesian optimization instead of grid search because this can use prior possibility to adjust the direction for tuning, it will give a better result with very limited rounds. And we may try different metric such as MAE to train the model it may also help the results. And there are other decision tree model called CatBoost which generate balanced decision trees with small amount of parameters. This model is much easier to do the hyper parameter tuning. And it is also a good idea to try to use K-fold cross validation to generate the model, it will be much helpful for the accuracy since it will generate k models and similarly with hybrid regression ensemble them together.
+For parameter tuning, I suggests to use Bayesian optimization instead of grid search because this can use prior possibility to adjust the direction for tuning, it will give a better result with very limited rounds. 
+
+And we may try different metric such as MAE to train the model it may also help the results. 
+
+And there are other decision tree model called CatBoost which generate balanced decision trees with small amount of parameters. This model is much easier to do the hyper parameter tuning. 
+
+And it is also a good idea to try to use K-fold cross validation to generate the model, it will be much helpful for the accuracy since it will generate k models and similarly with hybrid regression ensemble them together.
 
 The conclusion in this paper is that decision tree based model performs well in house price prediction and with ensemble by hybrid regression or stack generalization, the accuracy will be increased.
+
+This conclusion is not supportive since the dataset is too small and the overfitting can be always happened.
 
