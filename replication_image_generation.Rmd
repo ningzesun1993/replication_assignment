@@ -28,6 +28,8 @@ library(ggpubr)
 theme_set(theme_pubr())
 
 
+mac = TRUE
+
 
 
 list_to_df = function(missing, columns_name){
@@ -125,7 +127,11 @@ Then generate new feature age from 2019 - constructTime and turn it into numeric
 
 
 ```{r load_data, warning = 0}
-df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, encoding = 'UTF-8')
+if (mac == TRUE){
+  df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, fileEncoding = 'gbk')
+}else{
+  df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, encoding = 'UTF-8')
+}
 df = replace(df, df=="nan", NA)
 df = data.frame(df %>% dplyr::select(-url, -id, -Cid))
 df$livingRoom = as.numeric(df$livingRoom)

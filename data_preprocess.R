@@ -18,6 +18,7 @@ library(randomForest)
 library(ggpubr)
 theme_set(theme_pubr())
 
+mac = TRUE
 
 
 list_to_df = function(missing, columns_name){
@@ -45,8 +46,13 @@ RMSE = function(m, o){
 # expm1(log1p(df$price))
 
 
+if (mac == TRUE){
+  df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, fileEncoding = 'gbk')
+}else{
+  df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, encoding = 'UTF-8')
+}
 
-df = read.csv('./resources/house_price.csv', sep = ',', stringsAsFactors = FALSE, encoding = 'UTF-8')
+df$floor
 df = replace(df, df=="nan", NA)
 df = data.frame(df %>% dplyr::select(-url, -id, -Cid))
 num_columns = c('livingRoom', 'bathRoom', 'drawingRoom', 'constructionTime')
